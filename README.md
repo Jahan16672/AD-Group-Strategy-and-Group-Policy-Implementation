@@ -9,7 +9,6 @@
 - [Implementation Steps](#implementation-steps)
 - [Security Configuration](#security-configuration)
 - [Group Policy Management](#group-policy-management)
-- [Testing and Validation](#testing-and-validation)
 
 ##  Project Overview
 
