@@ -13,6 +13,10 @@
 
 ##  Project Overview
 
+![image](https://github.com/user-attachments/assets/55d0ffe4-f5c2-4ebf-97fb-1e156730225c)
+
+***Ref 1 - Scenario***
+
 This project implements an Active Directory infrastructure for BP Crop using the IGDLA (Identity, Global, Domain Local, Access) strategy to manage access control for their Marketing division, including Research and Advertising departments.
 
 ### Environment
@@ -79,25 +83,24 @@ IGDLA (Identity, Global, Domain Local, Access) is a Microsoft best practice for 
 
 ### Group Membership Flow
 
-```
-Identity Groups → Global Groups → Domain Local Groups → Folder Permissions
+![image](https://github.com/user-attachments/assets/2cd9fa21-ab4c-4fe7-8369-b39eccc3765b)
 
-I_Executive → G_Executive → DL_Res_Folder_RO + DL_Adv_Folder_RO
-I_Research → G_Research → DL_Res_Folder_RW + DL_Adv_Folder_RO  
-I_Advertisement → G_Advertisement → DL_Res_Folder_RO + DL_Adv_Folder_RW
-```
+***Ref 2 - Flow diagram***
 
 ## Implementation Steps
 
 ### Step 1: Domain Setup
 1. Install Windows Server with Active Directory Domain Services
 2. Promote server to Domain Controller
-3. Configure domain: `mysam.local` (demo) / `swin.com` (production)
-4. Join client machines to domain
+3. Configure domain: `mysam.local` (demo) 
+4. Join client machines to domain (Please review my other Active Directory project for reference)
 
 ### Step 2: Organizational Structure
-1. Create Organization: **BP Crop**
-2. Create Organizational Units as needed for department structure
+1. On your **domain controller**, press `Windows + R`, type `dsa.msc`, and press **Enter**  
+  → This will launch the **Active Directory Users and Computers** console.
+2. In the left-hand panel, expand the domain (e.g., `mysam.local`)
+3. Right-click on the domain name `mysam.local` - Select: New > Organizational Unit
+4. Name the OU: BP Crop
 
 ### Step 3: Create Folder Structure
 ```bash
@@ -153,7 +156,10 @@ Add-ADGroupMember -Identity "DL_Adv_Folder_RO" -Members "G_Research"
 Add-ADGroupMember -Identity "DL_Res_Folder_RO" -Members "G_Advertisement"
 Add-ADGroupMember -Identity "DL_Adv_Folder_RW" -Members "G_Advertisement"
 ```
+![image](https://github.com/user-attachments/assets/930bb963-f9ac-4903-bec3-32148dc4f9e1)
 
+***Ref 3 - Created Required Users, global groups & domain local groups***
+ 
 ##  Security Configuration
 
 ### Step 8: Configure Folder Permissions
@@ -165,6 +171,10 @@ Add-ADGroupMember -Identity "DL_Adv_Folder_RW" -Members "G_Advertisement"
    - Remove Users group
    - Add `DL_Res_Folder_RW` - Full Control
    - Add `DL_Res_Folder_RO` - Read & Execute, List folder contents, Read
+
+![image](https://github.com/user-attachments/assets/2e1535c0-38c1-4742-80a4-ba95543d012a)
+
+***Ref 4 - Remove inherited permissions***
 
 #### Advertisement Data Folder  
 1. **Share Permissions:** Everyone - Full Control
@@ -179,68 +189,111 @@ Add-ADGroupMember -Identity "DL_Adv_Folder_RW" -Members "G_Advertisement"
 icacls C:\Research_Data_Folder
 icacls C:\Advertisement_Data_Folder
 ```
+![image](https://github.com/user-attachments/assets/1fbae22a-fd40-40f1-a009-92b56b061e2b)
 
-## 📋 Group Policy Management
+***Ref 5 - Verify ACLs***
 
-### Policy 1: Delegation of Control
-1. Create OU: **Research**
-2. Delegate control to `I_Research` user
-3. Grant permissions:
-   - Create, delete, and manage user accounts
-   - Create, delete, and manage groups
+### Permission Testing – Folder Access Verification
 
-### Policy 2: Account Lockout Policy
-**Policy Name:** Wrong Password Policy
-**Location:** Computer Configuration > Policies > Windows Settings > Security Settings > Account Policies > Account Lockout 
-- **Account lockout threshold:** 4 invalid attempts
-- **Account lockout duration:** 90 minutes
-- **Reset account lockout counter:** 90 minutes
+To validate that NTFS permissions are correctly enforced for the `I_EXECUTIVE` user, a test login was performed on a domain-joined client machine.
 
+#### Test Scenario:
+- **User**: `I_EXECUTIVE`
+- **Target Folder**: `\\ServerName\Research_Data_Folder`
+- **Expected Access**: Read-Only
+
+#### Test Result:
+When attempting to write to the `Research_Data_Folder`, the following access denied error was encountered:
+
+![image](https://github.com/user-attachments/assets/303d6108-d97e-4ed5-9cac-8b958c83b366)
+
+***Ref 6 - Result***
+
+##  Group Policy Management
+
+### Policy 1: Delegation of Control 
+Q-Create an OU called Research. Delegate control of this OU to the previously created user account I_Research so that they can create, delete, and manage user accounts and groups.
+To allow `I_Research` limited administrative rights, we delegate control of the `Research` OU so they can manage users and groups.
+
+#### Steps:
+
+1. Open **Active Directory Users and Computers** (`dsa.msc`)
+2. Right-click the domain → `New > Organizational Unit` → Name it `Research`
+3. Right-click the `Research` OU → Select `Delegate Control...`
+4. In the wizard:
+   - Add `I_Research` as the user
+   - Select `Create a custom task to delegate`
+   - Choose `Only the following objects in the folder` → Check `User objects` and `Group objects`
+   - Assign permissions:
+     - Create/Delete selected objects
+     - Read/Write, Change Password, Reset Password
+5. Click **Finish**
+   
+![image](https://github.com/user-attachments/assets/de14a4ff-0be4-41d1-9a37-1ff3acc2b0f3)
+
+***Ref 7 - Task to Delegate***
+
+> ✅ Now `I_Research` can manage user and group accounts only within the `Research` OU, following least privilege principles.
+
+#### Policy 2: Account Lockout (Wrong Password Policy)
+Q-Ensure that users are locked out for 90 minutes if they enter the wrong password 4 times
+
+#### Steps:
+
+1. Open `Group Policy Management` (`gpmc.msc`)
+2. Create a new GPO named: `Wrong Password Policy`
+3. Navigate to:
+   Computer Configuration >
+     Policies >
+       Windows Settings >
+         Security Settings >
+           Account Policies >
+             Account Lockout Policy
+4. Set:
+   - Threshold: 4 invalid attempts  
+   - Lockout Duration: 90 minutes  
+   - Reset Counter After: 90 minutes
+
+![image](https://github.com/user-attachments/assets/99320661-854f-43e6-bf98-5cb02fd4cf83)
+
+***Ref 8 - Policy is working***
+
+Optional Command-Line:
 ```powershell
-# Apply via Group Policy or directly
 net accounts /lockoutthreshold:4 /lockoutduration:90 /lockoutwindow:90
 ```
 
-### Policy 3: Audit Policy Configuration
-**Location:** Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Audit Policies > Logon/Logoff
+---
 
-**Configure:**
-- Audit Logon: Success and Failure
-- Monitor Event IDs:
-  - **4624** - Successful logon
-  - **4625** - Failed logon attempt
+#### Policy 3: Audit Logon Activity
+Q-Audit all attempts to log on to the domain. Demonstrate that the
+policy works Computer Configuration 
 
-**Apply Policy:**
+#### Steps:
+
+1. In the same (or another) GPO, navigate to:
+   Computer Configuration >
+     Policies >
+       Windows Settings >
+         Security Settings >
+           Advanced Audit Policy Configuration >
+             Audit Policies >
+               Logon/Logoff
+2. Enable:
+   - Audit Logon: Success and Failure
+
+3. Apply changes:
 ```cmd
 gpupdate /force
 ```
 
-##  Testing and Validation
+4. Monitor Logs via Event Viewer:
+   - Event ID 4624 → Successful logon  
+   - Event ID 4625 → Failed logon attempt
 
-### Test 1: Executive Access Verification
-1. Login as `I_Executive`
-2. Access both Research and Advertisement folders
-3. Verify read-only access (cannot create/modify files)
-4. Confirm access to view folder contents
+![image](https://github.com/user-attachments/assets/e7b8eda3-2c56-4f81-adf7-a5d9b4f2a6ff)
 
-### Test 2: Department Access Testing
-1. **Research User Test:**
-   - Login as `I_Research`
-   - Verify R/W access to Research folder
-   - Verify RO access to Advertisement folder
+***Ref 9 - Event Viewer***
 
-2. **Advertisement User Test:**
-   - Login as `I_Advertisement`  
-   - Verify RO access to Research folder
-   - Verify R/W access to Advertisement folder
+✅ These policies strengthen system security by locking out accounts after multiple failed attempts and allowing login activity monitoring through the Event Viewer.
 
-### Test 3: Security Policy Validation
-1. **Account Lockout Test:**
-   - Attempt 4 incorrect passwords
-   - Verify account locks for 90 minutes
-   - Check Event Viewer for Event ID 4625
-
-2. **Audit Log Verification:**
-   - Check Windows Logs > Security
-   - Verify Event ID 4624 for successful logons
-   - Verify Event ID 4625 for failed attempts
