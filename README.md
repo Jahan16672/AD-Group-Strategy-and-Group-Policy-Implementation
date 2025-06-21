@@ -191,6 +191,7 @@ icacls C:\Advertisement_Data_Folder
 
 ### Policy 2: Account Lockout Policy
 **Policy Name:** Wrong Password Policy
+**Location:** Computer Configuration > Policies > Windows Settings > Security Settings > Account Policies > Account Lockout 
 - **Account lockout threshold:** 4 invalid attempts
 - **Account lockout duration:** 90 minutes
 - **Reset account lockout counter:** 90 minutes
